@@ -9,6 +9,7 @@ import {
 
 import buttondown from "buttondown"
 import fetch from "node-fetch"
+import * as crypto from "node:crypto"
 
 type RegistrationTypeformAnswers = [TypeformEmailAnswer, TypeformPaymentAnswer]
 
@@ -17,6 +18,24 @@ type RegistrationTypeformResponse = Omit<TypeformResponse, 'answers'> & {
 };
 
 export const handler: Handler = async (event, context) => {
+  const verifySignature = function(receivedSignature, payload){
+    const hash = crypto
+      .createHmac('sha256', process.env.TYPEFORM_TOKEN)
+      .update(payload)
+      .digest('base64')
+    return receivedSignature === `sha256=${hash}`
+  }
+
+  const signature = event.headers['typeform-signature']
+  const isValid = verifySignature(signature, event.body.toString())
+
+
+  if(isValid == false) {
+    return {
+      statusCode: 401,
+      message: "Unauthorized"
+    }
+  }
   const body: RegistrationTypeformResponse = JSON.parse(event.body)
   // @ts-expect-error
   const answers: RegistrationTypeformAnswers = body.form_response.answers
